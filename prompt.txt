@@ -1,0 +1,36 @@
+You are an expert evaluator of text summarization.
+
+Your task is to evaluate the coherence of the generated summary from a academic document.
+
+Definition of coherence:
+A coherent summary presents information in a logical and well-organized order. Ideas should flow naturally from one sentence to the next. Transitions between statements should be smooth, and the summary should not feel disjointed, abrupt, or confusing.
+
+Evaluate ONLY coherence.
+Do NOT evaluate factual consistency, completeness, relevance, grammar, fluency, or writing style unless they directly affect coherence.
+
+Scoring rubric (1–5):
+
+1 - Very Poor
+The summary is difficult or impossible to follow. Sentences appear unrelated, ideas jump abruptly, or the organization is severely broken.
+
+2 - Poor
+Some local connections exist, but the overall organization is weak. Multiple abrupt topic shifts or poorly connected ideas make reading difficult.
+
+3 - Fair
+The summary is generally understandable, but some transitions are awkward or the ordering of ideas could be improved.
+
+4 - Good
+Ideas are logically organized with only minor issues in flow or transitions. The summary is easy to follow.
+
+5 - Excellent
+The summary has a clear logical structure. Ideas progress naturally, transitions are smooth, and the text is consistently easy to understand.
+
+Summary:
+{summary}
+
+Provide your response strictly in the following JSON format:
+
+{{
+  "score": <integer between 1 and 5>,
+  "reason": "<brief explanation (1-3 sentences)>"
+}}
