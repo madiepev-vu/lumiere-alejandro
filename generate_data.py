@@ -1,131 +1,145 @@
-import json
-import re
 import requests
 from bs4 import BeautifulSoup
+import time
+from urllib.parse import urljoin
+from pathlib import Path
+import re
+import json
 
-BASE_URL = "https://openstax.org/books/biology-ap-courses/pages/"
-CHAPTER_2_SECTIONS = [
-    "2-1-atoms-isotopes-ions-and-molecules-the-building-blocks",
-    "2-2-water",
-    "2-3-carbon"
-]
-# CAMBIO CRÍTICO: Apuntamos a la página de Términos Clave del Capítulo 2
-KEY_TERMS_URL = BASE_URL + "2-key-terms"
+# --- Configurations ---
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
 
+def clean_text(text):
+    """Utility to clean up whitespace inconsistencies from HTML extraction."""
+    return "\n".join(line.strip() for line in text.split("\n") if line.strip())
 
-def get_soup(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            response.encoding = 'utf-8' # Mantenemos el fix de UTF-8
-            return BeautifulSoup(response.text, "html.parser")
-    except Exception as e:
-        print(f"Error en {url}: {e}")
-    return None
+def extract_topic_from_url(url):
+    """Extracts the textbook name from the URL."""
+    match = re.search(r'/books/([^/]+)/pages/', url)
+    if match:
+        raw_topic = match.group(1)
+        clean_topic = raw_topic.replace('introduction-', '').replace('introductory-', '').replace('-essentials', '').replace('-3e', '').replace('-2e', '')
+        return clean_topic.replace('-', ' ').title()
+    return "Unknown Topic"
 
-
-def extract_real_key_terms(terms_url):
-    """Scrapea la página de términos clave y extrae cada concepto con su
-
-    definición exacta para crear un Ground Truth denso y de alta calidad.
+def get_chapter_structure(chapter_url):
     """
-    soup = get_soup(terms_url)
-    if not soup:
-        return []
-
-    terms_list = []
+    Finds subchapters and explicitly constructs the Key Terms URL 
+    to bypass OpenStax's JavaScript-hidden menus.
+    """
+    response = requests.get(chapter_url, headers=HEADERS)
+    response.encoding = 'utf-8'
     
-    # OpenStax usualmente estructura el glosario con bloques de términos clave
-    # Busca elementos comunes en sus páginas de términos ('key-term' o estructuras dt/dd)
-    glossary_items = soup.find_all(attrs={"data-type": "glossary-item"}) or soup.find_all(class_="glossary-item")
+    if response.status_code != 200:
+        return [], None
+
+    soup = BeautifulSoup(response.text, 'html.parser')
     
-    if glossary_items:
-        for item in glossary_items:
-            text = item.get_text().strip()
-            # Limpiar espacios en blanco adicionales intermedios
-            clean_text = re.sub(r'\s+', ' ', text)
-            if clean_text:
-                terms_list.append(clean_text)
-    else:
-        # Fallback alternativo: si usan listas de definición estándar (dt = término, dd = definición)
-        dts = soup.find_all("dt")
-        dds = soup.find_all("dd")
-        for t, d in zip(dts, dds):
-            term_def = f"{t.get_text().strip()}: {d.get_text().strip()}"
-            clean_text = re.sub(r'\s+', ' ', term_def)
-            terms_list.append(clean_text)
+    # 1. Identify the book base and chapter number
+    match = re.search(r'(/books/[^/]+/pages/)(\d+)-', chapter_url)
+    if not match:
+        return [chapter_url], None
+        
+    base_path = match.group(1)
+    chapter_num = match.group(2)
+    chapter_prefix = f"{base_path}{chapter_num}-"
+    
+    # 2. Find subchapters (using links on the page)
+    subchapters = []
+    for link in soup.find_all('a', href=True):
+        absolute_url = urljoin(chapter_url, link['href']).split('#')[0]
+        url_lower = absolute_url.lower()
 
-    return terms_list
+        if chapter_prefix in url_lower:
+            if any(skip in url_lower for skip in ["key-terms", "review-questions", "references", "summary", "assessment"]):
+                continue
+            if absolute_url not in subchapters:
+                subchapters.append(absolute_url)
 
+    # 3. DIRECTLY CONSTRUCT the Key Terms URL and verify it exists
+    base_domain = chapter_url.split('/books/')[0]
+    constructed_key_terms_url = f"{base_domain}{base_path}{chapter_num}-key-terms"
+    
+    check_exists = requests.head(constructed_key_terms_url, headers=HEADERS)
+    key_terms_url = constructed_key_terms_url if check_exists.status_code == 200 else None
 
-def extract_section_text(section_url):
-    soup = get_soup(section_url)
-    if not soup:
-        return None
+    return subchapters, key_terms_url
 
-    main_content = soup.find(attrs={"data-type": "page"}) or soup.find("main") or soup.body
+def extract_section_content(url):
+    """Extracts body text from a subchapter."""
+    response = requests.get(url, headers=HEADERS)
+    response.encoding = 'utf-8' # Prevents Mojibake (â€œ)
+    
+    if response.status_code != 200:
+        return ""
+        
+    soup = BeautifulSoup(response.text, 'html.parser')
+    main_content = soup.find('main') or soup.find('div', {'data-type': 'page'}) or soup.find('div', class_='os-chapter-content')
     if not main_content:
-        return None
+        main_content = soup.body 
+    if not main_content:
+        return ""
 
-    paragraphs = []
-    for p in main_content.find_all("p"):
-        if p.get("data-type") == "abstract" or "caption" in p.get("class", []):
-            continue
-        text = p.get_text().strip()
-        if text:
-            paragraphs.append(text)
+    for extra in main_content.find_all(['nav', 'footer', 'header', 'script', 'style']):
+        extra.decompose()
+    for extra in main_content.find_all(class_=['os-review-questions', 'os-references']):
+        extra.decompose()
 
-    return "\n\n".join(paragraphs)
+    return clean_text(main_content.get_text(separator='\n'))
 
+def harvest_chapter_data(chapter_start_url):
+    print(f"\n[+] Analyzing Chapter Layout from: {chapter_start_url}")
+    topic = extract_topic_from_url(chapter_start_url)
+    subchapters, key_terms_url = get_chapter_structure(chapter_start_url)
+    
+    full_body_parts = []
+    ground_truth_objectives_text = ""
 
-def build_corrected_dataset():
-    print("Iniciando Pipeline Corregido (Ground Truth como Texto)...")
-    
-    # 1. Extraer la lista de términos reales de la página de términos
-    print("-> Extrayendo Key Terms reales...")
-    real_ground_truth_list = extract_real_key_terms(KEY_TERMS_URL)
-    
-    # -------------------------------------------------------------
-    # CAMBIO CRÍTICO: Convertir la lista de términos en un solo string de texto continuo
-    # Separamos cada término y su definición con un salto de línea doble (\n\n)
-    ground_truth_texto_unificado = "\n\n".join(real_ground_truth_list)
-    # -------------------------------------------------------------
-    
-    # 2. Extraer y fusionar el texto de las secciones
-    merged_text_blocks = []
-    section_count = 0
-    
-    for section_slug in CHAPTER_2_SECTIONS:
-        full_url = BASE_URL + section_slug
-        print(f"-> Scrapeando Sección: {section_slug}")
-        
-        section_content = extract_section_text(full_url)
-        if section_content:
-            section_count += 1
-            section_header = f"=== SECTION 2.{section_count}: {section_slug.replace('-', ' ').upper()} ==="
-            merged_text_blocks.append(f"{section_header}\n{section_content}")
+    # 1. Harvest Subchapters
+    for sub_url in subchapters:
+        print(f" -> Fetching content: {sub_url}")
+        body = extract_section_content(sub_url)
+        full_body_parts.append(body)
+        time.sleep(1.0) 
 
-    full_chapter_document = "\n\n".join(merged_text_blocks)
-    
-    # 3. Empaquetar todo en el JSON. Ahora ambos textos son strings puros.
-    chapter_dataset = {
-        "chapter_number": 2,
-        "total_sections_extracted": section_count,
-        "ground_truth_objectives": ground_truth_texto_unificado,  # <- Ya no es una lista, es texto plano
-        "full_chapter_text": full_chapter_document
+    # 2. Harvest standalone Key Terms page as full text
+    if key_terms_url:
+        print(f" -> Found Key Terms page! Fetching full text: {key_terms_url}")
+        ground_truth_objectives_text = extract_section_content(key_terms_url)
+        time.sleep(1.0)
+    else:
+        print(" -> No dedicated Key Terms page found for this chapter.")
+
+    print("[!] Harvest complete!")
+    return {
+        "topic": topic,
+        "ground_truth_objectives": ground_truth_objectives_text,
+        "full_chapter_text": "\n\n".join(full_body_parts)
     }
-    
-    output_file = "openstax_chapter_2_dataset.json"
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(chapter_dataset, f, indent=4, ensure_ascii=False)
-        
-    print(f"\n¡Dataset generado con éxito en '{output_file}'!")
-    print(f"Secciones fusionadas: {section_count}")
-    print("Ground Truth convertido a string unificado correctamente.")
 
+urls = []
+with open("URLs.txt", "r", encoding="utf-8") as f:
+    for line in f:
+        print(line)
+        line = line.strip()
+        urls.append(line)
 
-if __name__ == "__main__":
-    build_corrected_dataset()
+print(urls)
+
+dic = {}
+
+output_dir = Path("textbooks")
+output_dir.mkdir(parents=True, exist_ok=True)
+
+for url in urls:
+    chapter_data = harvest_chapter_data(url)
+    if chapter_data['topic'] not in dic:
+        dic[chapter_data['topic']] = 0
+    dic[chapter_data['topic']] += 1
+    filename = output_dir / f"{chapter_data['topic'].replace(' ', '_').lower()}_{dic[chapter_data['topic']]}.json"
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(chapter_data, f, ensure_ascii=False, indent=4)
+    print(f"[+] Data saved to {filename}\n\n")
+
