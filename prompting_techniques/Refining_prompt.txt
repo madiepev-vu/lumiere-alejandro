@@ -1,0 +1,8 @@
+Summarize the following textbook chapter.
+
+After generating the summary, review it for:
+- omitted concepts,
+
+Revise the summary accordingly, and repeat this process until you consider that no important concept is missing.
+
+Output only the final revised summary.

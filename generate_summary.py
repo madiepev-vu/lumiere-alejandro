@@ -7,8 +7,11 @@ import keys
 client = genai.Client(api_key=keys.summary_key)
 
 
-def generate_summary(prompt , original_text):
-    content = prompt.format(original_text=original_text)
+def generate_summary(prompt , text_json):
+    file = json.loads(text_json)
+    original_text = file["full_chapter_text"]
+    topic = file["topic"]
+    content = prompt.format(original_text=original_text, topic=topic)
     response = client.models.generate_content(
         model="gemini-3.5-flash",
         contents= content,
