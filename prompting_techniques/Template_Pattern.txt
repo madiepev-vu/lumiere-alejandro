@@ -1,0 +1,12 @@
+Summarize the following academic textbook chapter.
+
+Identify all major concepts necessary to understand the chapter. Present them in the order they appear in the original text.
+
+For each major concept, you MUST strictly follow this exact template for your output:
+
+[Objective/Main Idea]: <Insert 1-2 sentences>
+[Key concepts]: <Insert bullet points>
+[Importance]: <Insert 1-2 sentences>
+
+Text:
+{Textbook}

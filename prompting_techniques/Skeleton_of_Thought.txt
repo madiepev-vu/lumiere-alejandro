@@ -1,11 +1,23 @@
 Read the following textbook chapter and follow these explicit steps in order to create a summary:
 
 Step 1:
-Generate the skeleton (not the full content) for summarizing the chapter. Provide the skeleton in a list of points (numbered 1, 2, 3, etc.) where each point is a major concept of the text. Instead of writing a full sentence, each skeleton point should be very short with only 3∼5 words.
-Step 2: 
-Evaluate every skeleton point separated from the other ones following the order of the points' indexes.
-Continue and only continue the writing of the summary expading the current point. Write it **very shortly** in 1-2 sentence, and
-do not continue with other points until you have finished the current point.
+Generate the skeleton (not the full content) for summarizing the chapter. Provide the skeleton in a list of points (numbered 1, 2, 3, etc.) where each point is a major concept of the text. Instead of writing a full sentence, each skeleton point should be very short with only 3-5 words.
+Step 2:
+Expand each skeleton point independently. Expand only the current skeleton point into a concise explanation of 1–2 sentences before proceeding to the next point.
+
+Output format:
+
+Skeleton:
+1.
+2.
+3.
+...
+
+Summary:
+1.
+2.
+3.
+...
 
 Text:
-[Article Text]
+{textbook}

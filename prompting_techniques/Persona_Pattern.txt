@@ -1,4 +1,6 @@
-Act as an expert in {topic}. Given the following text, provide a comprehensive summary tailored from the perspective of an expert, highlighting details relevant to students who want to understand as most details as possible.
+Act as an expert in {topic}.
+
+Given the following text, provide a comprehensive summary tailored from the perspective of an expert, highlighting details relevant to students who want to understand as most details as possible.
 
 Text:
 [Article Text]
