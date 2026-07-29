@@ -26,5 +26,5 @@ def generate_coherence_score(generated_summary):
     raw_text = response.text 
     clean_text = raw_text.replace("```json", "").replace("```", "").strip()
     data = json.loads(clean_text)
-    normalized_score = float(data["score"])/5.0
+    normalized_score = float(data["score"] - 1)/4.0
     return normalized_score
