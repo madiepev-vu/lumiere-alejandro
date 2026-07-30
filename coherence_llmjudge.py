@@ -1,13 +1,20 @@
 import json
-import os
-from google import genai
-from google.genai import types
-import keys
+from pathlib import Path
 
-client = genai.Client(api_key=keys.coherence_key)
+from azure_model import generate_json
 
-with open("coherence_prompt.txt", "r", encoding="utf-8") as f:
+with open(Path(__file__).resolve().parent / "coherence_prompt.txt", "r", encoding="utf-8") as f:
     template_prompt = f.read()
+
+COHERENCE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer", "minimum": 1, "maximum": 5},
+        "reason": {"type": "string"},
+    },
+    "required": ["score", "reason"],
+    "additionalProperties": False,
+}
 
 def generate_coherence_score(generated_summary):
     summ = generated_summary
@@ -16,15 +23,11 @@ def generate_coherence_score(generated_summary):
         summary = summ
     )
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=final_prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.0,
-        ),
+    raw_text = generate_json(
+        final_prompt,
+        schema=COHERENCE_SCHEMA,
+        max_output_tokens=300,
     )
-    raw_text = response.text 
-    clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-    data = json.loads(clean_text)
+    data = json.loads(raw_text)
     normalized_score = float(data["score"] - 1)/4.0
     return normalized_score
