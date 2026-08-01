@@ -1,0 +1,114 @@
+---
+title: "interpretation_of_results"
+author: "Alejandro Pineda"
+format: html
+editor: visual
+---
+
+## Interpretation of results
+
+The first step is storing the csv file
+
+```{r}
+#install.packages("readr")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+library("readr")
+library("ggplot2")
+library("dplyr")
+```
+
+```{r}
+DF <- read_csv("results/results_1.csv")
+DF
+```
+
+For each prompting technique, we'll see its histogram
+
+```{r}
+
+for (i in 1:5) {
+  nombre_fila <- DF[i, 1] 
+  
+  datos_fila <- as.numeric(DF[i, -1]) 
+  
+  hist(datos_fila,
+       breaks = seq(0, 1, by = 0.05),
+       xlim = c(0, 1),
+       ylim = c(0, 50),
+       col = "steelblue",
+       main = nombre_fila,
+       xlab = "",
+       ylab = "Frecuency")
+  
+mtext("Values (Escale from 0 to 1)", side = 1, line = 2.3, cex = 0.9)
+  
+mtext(paste("Average score:", mean(datos_fila)), side = 1, line = 3.3, cex = 0.9, font = 2, col = "darkblue")
+  
+mtext(paste("Least value", min(datos_fila)), side = 1, line = 4.3, cex = 0.9, font = 2, col = "darkgreen")
+  
+}
+
+
+```
+
+All the histograms have a tendency to the right, showing that all of them achieved good scores. In addition, the minimum value secured by each technique is greater than 0.6.
+
+However, despite the good results obtained by Skeleton-of-thought and Template pattern, the graphics show that the techniques that stand out are Persona Pattern, Refining Prompt, and Zero-shot Baseline.\
+This affirmation is based on the histograms, were the latter showed more consistence, having scores greater than 0.9 in most of the textbooks' chapters.\
+\
+Having all the performances, it's precise to verify the initial hypothesis and try to find a specific technique that works best.
+
+Following the methods described before, and using the next script:
+
+```{r}
+df <- DF
+prompts <- df$prompt
+
+# Remove the prompt column so only scores remain
+scores <- as.matrix(df[, -1])
+
+n <- length(prompts)
+
+# Pairwise wins matrix
+wins <- matrix(0, nrow = n, ncol = n,
+               dimnames = list(prompts, prompts))
+
+# Number of pairwise victories
+victories <- setNames(rep(0, n), prompts)
+
+for (i in 1:(n-1)) {
+  for (j in (i+1):n) {
+
+    i_votes <- sum(scores[i, ] > scores[j, ])
+    j_votes <- sum(scores[j, ] > scores[i, ])
+
+    wins[i, j] <- i_votes
+    wins[j, i] <- j_votes
+
+    if (i_votes > j_votes) {
+      victories[i] <- victories[i] + 1
+    } else if (j_votes > i_votes) {
+      victories[j] <- victories[j] + 1
+    }
+  }
+}
+
+print(wins)
+print(victories)
+
+# Condorcet winner
+winner <- names(victories[victories == n - 1])
+
+if (length(winner) == 0) {
+  cat("No Condorcet winner.\n")
+} else {
+  cat("Condorcet winner:", winner, "\n")
+}
+```
+
+Condorcet method shows that Refining Prompt is the strategy that performed well in most of the cases.
+
+On the other hand, the Refining Prompt was also the technique with the highest average.
+
+Both of results agree, so we can conclude the Refining Prompt is the technique that works best in most of the cases.
